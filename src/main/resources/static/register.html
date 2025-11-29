@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Register</title>
+    <style>
+        body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 2rem; }
+        form { max-width: 480px; }
+        label { font-weight: 600; }
+        input { width: 100%; padding: .5rem; margin-top: .25rem; }
+        button { margin-top: .5rem; padding: .5rem .75rem; }
+        .msg { margin-top: 1rem; }
+        .error { color: #b00020; }
+        .ok { color: #0a7a0a; }
+    </style>
+</head>
+<body>
+<h1>Register</h1>
+<form id="registerForm" method="post" action="/api/auth/register" novalidate>
+    <label for="username">Username</label><br>
+    <input id="username" name="username" type="text" required><br><br>
+
+    <label for="password">Password</label><br>
+    <input id="password" name="password" type="password" required><br><br>
+
+    <label for="name">Name</label><br>
+    <input id="name" name="name" type="text" required><br><br>
+
+    <label for="surname">Surname</label><br>
+    <input id="surname" name="surname" type="text" required><br><br>
+
+    <button type="submit">Create account</button>
+    <div id="msg" class="msg" role="alert" aria-live="polite"></div>
+</form>
+
+<p>Already have an account? <a href="/login.html">Log in</a></p>
+
+<script>
+    (function () {
+      // Grab references to the register form and the message area
+      const form = document.getElementById('registerForm');
+      const msg = document.getElementById('msg');
+
+      // Intercept the submit so we can send JSON via fetch (no full page reload)
+      form.addEventListener('submit', async function (e) {
+        e.preventDefault();     // stop default form POST
+        msg.textContent = '';   // clear any previous message
+        msg.className = 'msg';  // reset message styling
+
+        // Build the payload from form inputs
+        const body = {
+          username: form.username.value.trim(),
+          password: form.password.value,
+          name: form.name.value.trim(),
+          surname: form.surname.value.trim()
+        };
+
+        // Basic client-side validation: all fields must be present
+        if (!body.username || !body.password || !body.name || !body.surname) {
+          msg.textContent = 'Please fill all fields.';
+          msg.classList.add('error');
+          return;    // don’t send the request if invalid
+        }
+
+        // Send JSON to your API endpoint (form.action)
+        try {
+          const res = await fetch(form.action, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          });
+
+          // Success: tell the user and go to login page
+          if (res.ok) {
+            msg.textContent = 'Account created. Redirecting to login...';
+            msg.classList.add('ok');
+            // navigate to login page (static)
+            window.location.assign('/login.html');
+          } else {
+            // Failure: show server’s text if available, or a generic message
+            let text = 'Registration failed.';
+            try { text = (await res.text()) || text; } catch {}
+            msg.textContent = text;
+            msg.classList.add('error');
+          }
+        } catch (err) {
+          // Network/connection problems end up here
+          msg.textContent = 'Network error. Please try again.';
+          msg.classList.add('error');
+        }
+      });
+    })();
+</script>
+</body>
+</html>

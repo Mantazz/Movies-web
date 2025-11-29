@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Login</title>
+    <style>
+        body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 2rem; }
+        form { max-width: 360px; }
+        label { font-weight: 600; }
+        input { width: 100%; padding: .5rem; margin-top: .25rem; }
+        button { margin-top: .5rem; padding: .5rem .75rem; }
+        .msg { margin-top: 1rem; }
+        .error { color: #b00020; }
+        .ok { color: #0a7a0a; }
+    </style>
+</head>
+<body>
+<h1>Login</h1>
+<form id="loginForm" method="post" action="/api/auth/login" novalidate>
+    <label for="username">Username</label><br>
+    <input id="username" name="username" type="text" required><br><br>
+
+    <label for="password">Password</label><br>
+    <input id="password" name="password" type="password" required><br><br>
+
+    <button type="submit">Log in</button>
+    <div id="msg" class="msg" role="alert" aria-live="polite"></div>
+</form>
+
+<p>Don’t have an account? <a href="/register.html">Register</a></p>
+
+<script>
+    (function () {
+      // Grab references to the form and message area in the page
+      const form = document.getElementById('loginForm');
+      const msg  = document.getElementById('msg');
+
+      // Intercept the form submit to send JSON via fetch instead of a normal page post
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();                             // stop the browser's default form submission
+        msg.textContent = '';                           // clear any previous message
+        msg.className = 'msg';                          // reset message styles
+
+        // Build the JSON payload from form fields
+        const body = { username: form.username.value.trim(), // trim to avoid accidental spaces
+        password: form.password.value
+        };
+
+        try {
+          // Call your login API (form.action) with JSON
+          const res = await fetch(form.action, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          });
+
+          // If the response is not 2xx, show the server's error text if available
+          if (!res.ok) {
+            let text = 'Login failed.'; try { text = (await res.text()) || text; } catch {}
+            msg.textContent = text; msg.classList.add('error');
+            return; // stop here on error
+          }
+
+          // Parse JSON: expected shape { token: "jwt", message: "Success" }
+          const data = await res.json();
+
+          // Save the JWT for subsequent API calls (movies.html will read this)
+          if (data && data.token) localStorage.setItem('token', data.token);
+          window.location.assign('/movies.html');
+
+          // Optional: show a success note (might be very brief before redirect)
+          msg.textContent = 'Login successful. Redirecting…';
+          msg.classList.add('ok');
+
+          // Navigate to the movies page
+          window.location.assign('/movies.html');     // go straight to movies
+        } catch (err) {
+          // Network/parse errors end up here
+          msg.textContent = 'Network error. Please try again.';
+          msg.classList.add('error');
+        }
+      });
+    })();
+</script>
+
+</body>
+</html>

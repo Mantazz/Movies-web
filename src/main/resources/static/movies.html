@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Movies — DB CRUD</title>
+    <style>
+        body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:2rem}
+        nav a{margin-right:1rem}
+        form{display:grid;gap:.75rem;max-width:640px;margin-bottom:1.25rem}
+        label{font-weight:600}
+        input,select{width:100%;padding:.5rem}
+        .row{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
+        .actions{display:flex;gap:.5rem;align-items:center}
+        .msg{min-height:1.25rem}
+        .ok{color:#0a7a0a}.err{color:#b00020}
+        table{border-collapse:collapse;width:100%}
+        th,td{border:1px solid #ddd;padding:.5rem;vertical-align:top}
+        th{background:#f6f6f6;text-align:left}
+        .empty{color:#777;padding:.75rem 0}
+        .right{text-align:right}
+    </style>
+</head>
+<body>
+<nav>
+    <a href="/login.html">Login</a>
+    <a href="/register.html">Register</a>
+</nav>
+
+<h1>Movies</h1>
+<form id="movieForm" novalidate>
+    <input type="hidden" id="id">
+    <div class="row">
+        <div>
+            <label for="title">Title *</label>
+            <input id="title" required placeholder="Interstellar">
+        </div>
+        <div>
+            <label for="length">Length (h:mm)</label>
+            <input id="length" name="length"
+                   required
+                   pattern="\d{1,2}:[0-5][0-9]"
+                   title="Use h:mm, e.g., 2:30">
+        </div>
+    </div>
+    <div class="row">
+        <div>
+            <label for="rating">Rating *</label>
+            <select id="rating">
+                <option>1</option><option>2</option>
+                <option>3</option><option>4</option><option>5</option>
+            </select>
+        </div>
+        <div>
+            <label for="notes">Notes</label>
+            <input id="notes" placeholder="Short notes…">
+        </div>
+    </div>
+    <div class="actions">
+        <button type="submit" id="saveBtn">Save</button>
+        <button type="button" id="resetBtn">Reset</button>
+        <span id="msg" class="msg" aria-live="polite"></span>
+    </div>
+</form>
+
+<section>
+    <h2>All Movies</h2>
+    <div id="empty" class="empty">Loading…</div>
+    <table id="table" hidden>
+        <thead>
+        <tr>
+            <th style="width:28%">Title</th>
+            <th style="width:12%">Length</th>
+            <th style="width:10%">Rating</th>
+            <th>Notes</th>
+            <th style="width:16%" class="right">Actions</th>
+        </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+    </table>
+</section>
+
+<script>
+    (function () {
+      const API = {
+        list:   "/api/movie/all",
+        create: "/api/movie/add",
+        update: (id) => `/api/movie/edit/${id}`,
+        remove: (id) => `/api/movie/delete/${id}`,
+      };
+
+      const form   = document.getElementById('movieForm');
+      const msg    = document.getElementById('msg');
+      const tbody  = document.getElementById('tbody');
+      const table  = document.getElementById('table');
+      const empty  = document.getElementById('empty');
+      const saveBtn= document.getElementById('saveBtn');
+      const resetBtn=document.getElementById('resetBtn');
+
+      function setMsg(text, ok){
+        msg.textContent = text || '';
+        msg.className   = 'msg' + (text ? (ok ? ' ok' : ' err') : '');
+      }
+
+      function clearForm() {
+        form.id.value      = '';
+        form.title.value   = '';
+        form.length.value  = '';
+        form.rating.value  = '';
+        form.notes.value   = '';
+        saveBtn.textContent= 'Save';
+        setMsg('');
+      }
+
+      function escapeHtml(s){
+        return String(s ?? '').replace(/[&<>"']/g, c => ({
+          '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'
+        }[c]));
+      }
+
+      function getToken() {
+        const t = localStorage.getItem('token');
+        if (!t) { window.location.replace('/login.html'); throw new Error('No token'); }
+        return t;
+      }
+
+      async function api(method, url, body) {
+        const res = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+          body: body ? JSON.stringify(body) : undefined
+        });
+        console.log(method, url, '→', res.status);
+        if (res.status === 204) return [];
+        if (!res.ok) {
+          const text = await res.text().catch(()=> '');
+          throw new Error(`HTTP ${res.status}: ${(text || res.statusText || 'Request failed').slice(0,500)}`);
+        }
+        try { return await res.json(); } catch { return null; }
+      }
+
+      async function load() {
+        try {
+          empty.textContent = 'Loading…'; empty.hidden = false; table.hidden = true;
+          const items = await api('GET', API.list);
+          render(Array.isArray(items) ? items : []);
+        } catch (e) {
+          empty.textContent = e.message || 'Failed to load.';
+          setMsg(e.message, false);
+          console.error(e);
+        }
+      }
+
+      function render(items){
+        if (!items.length){ empty.textContent='No movies yet.'; empty.hidden=false; table.hidden=true; tbody.innerHTML=''; return; }
+        empty.hidden=true; table.hidden=false; tbody.innerHTML='';
+        for (const m of items){
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${escapeHtml(m.title)}</td>
+            <td>${escapeHtml(m.length)}</td>
+            <td>${m.rating ?? ''}</td>
+            <td>${escapeHtml(m.notes)}</td>
+            <td class="right">
+              <button data-edit="${m.id}">Edit</button>
+              <button data-del="${m.id}">Delete</button>
+            </td>`;
+          tbody.appendChild(tr);
+        }
+      }
+
+      function loadToForm(m){
+        form.id.value     = m.id ?? '';
+        form.title.value  = m.title ?? '';
+        form.length.value = m.length ?? '';
+        form.rating.value = (m.rating ?? '').toString();
+        form.notes.value  = m.notes ?? '';
+        saveBtn.textContent = 'Update';
+        setMsg('Editing "' + (m.title || '') + '".', true);
+        window.scrollTo({top:0, behavior:'smooth'});
+      }
+
+      // Create/Update WITHOUT any client-side validation
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const payload = {
+          title:  form.title.value.trim() || null,
+          length: form.length.value.trim() || null,
+          // send number when present; otherwise null (backend will validate)
+          rating: form.rating.value ? Number(form.rating.value) : null,
+          notes:  form.notes.value.trim() || null
+        };
+
+        try {
+          if (form.id.value) {
+            await api('PUT', API.update(form.id.value), payload);
+            setMsg('Updated.', true);
+          } else {
+            await api('POST', API.create, payload);
+            setMsg('Created.', true);
+          }
+          clearForm();
+          await load();
+        } catch (e2) {
+          setMsg(e2.message, false);
+          console.error(e2);
+        }
+      });
+
+      resetBtn.addEventListener('click', () => { clearForm(); setMsg('Cleared.', true); });
+
+      tbody.addEventListener('click', async (e) => {
+        const t = e.target;
+        if (!(t instanceof HTMLElement)) return;
+        const idEdit = t.getAttribute('data-edit');
+        const idDel  = t.getAttribute('data-del');
+
+        if (idEdit){
+          try {
+            const items = await api('GET', API.list);
+            const m = (items || []).find(x => String(x.id) === String(idEdit));
+            if (m) loadToForm(m);
+          } catch (e3) { setMsg(e3.message, false); }
+        }
+
+        if (idDel){
+          if (!confirm('Delete this movie?')) return;
+          try { await api('DELETE', API.remove(idDel)); setMsg('Deleted.', true); await load(); }
+          catch (e4){ setMsg(e4.message, false); }
+        }
+      });
+
+      load();
+    })();
+</script>
+
+
+</body>
+</html>
